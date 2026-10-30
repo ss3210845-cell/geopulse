@@ -6,3 +6,4 @@ models/*.pth
 outputs/
 .ipynb_checkpoints/
 .DS_Store
+runs/
