@@ -41,11 +41,13 @@ def parse_args():
     p.add_argument("--flood_weight", type=float, default=2.0)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--num_workers", type=int, default=0)
+    p.add_argument("--augment", action="store_true", help="random flips/rotations on train tiles")
+    p.add_argument("--add_diff", action="store_true", help="add VV-VH difference as 3rd channel")
     p.add_argument("--out_dir", default="runs/baseline")
     return p.parse_args()
 
 
-def make_dataset(csv_file, base_dir, limit):
+def make_dataset(csv_file, base_dir, limit, augment=False, add_diff=False):
     n = count_rows(csv_file)
     if limit is not None:
         n = min(n, limit)
@@ -54,6 +56,8 @@ def make_dataset(csv_file, base_dir, limit):
         base_dir=base_dir,
         num_samples=n,
         indices=list(range(n)),
+        augment=augment,
+        add_diff=add_diff,
     )
 
 
@@ -66,8 +70,10 @@ def main():
     with open(os.path.join(args.out_dir, "config.json"), "w") as f:
         json.dump(vars(args), f, indent=2)
 
-    train_ds = make_dataset(args.train_csv, args.base_dir, args.max_train)
-    val_ds = make_dataset(args.val_csv, args.base_dir, args.max_val)
+    train_ds = make_dataset(args.train_csv, args.base_dir, args.max_train,
+                            augment=args.augment, add_diff=args.add_diff)
+    val_ds = make_dataset(args.val_csv, args.base_dir, args.max_val,
+                          augment=False, add_diff=args.add_diff)
     print(f"Device: {device} | train tiles: {len(train_ds)} | val tiles: {len(val_ds)}")
 
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
@@ -75,7 +81,7 @@ def main():
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False,
                             num_workers=args.num_workers)
 
-    model = UNet().to(device)
+    model = UNet(in_channels=3 if args.add_diff else 2).to(device)
     criterion = CombinedLoss(dice_weight=args.dice_weight, flood_weight=args.flood_weight)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 

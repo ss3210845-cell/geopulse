@@ -40,7 +40,7 @@ class DoubleConv(nn.Module):
 
 class UNet(nn.Module):
 
-    def __init__(self):
+    def __init__(self, in_channels=2):
 
         super().__init__()
 
@@ -48,7 +48,7 @@ class UNet(nn.Module):
         # Encoder
         # ------------------------------------------
 
-        self.encoder1 = DoubleConv(2, 32)
+        self.encoder1 = DoubleConv(in_channels, 32)
 
         self.encoder2 = DoubleConv(32, 64)
 
