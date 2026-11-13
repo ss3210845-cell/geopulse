@@ -21,7 +21,7 @@ def parse_args():
     p.add_argument("--input", required=True)
     p.add_argument("--weights", default="runs/aug/best.pth")
     p.add_argument("--out", default="outputs/scene")
-    p.add_argument("--threshold", type=float, default=0.5)
+    p.add_argument("--threshold", type=float, default=0.4)
     p.add_argument("--tile", type=int, default=512)
     p.add_argument("--overlap", type=int, default=64)
     p.add_argument("--batch_size", type=int, default=4)
