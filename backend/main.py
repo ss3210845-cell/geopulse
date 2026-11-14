@@ -81,6 +81,14 @@ def run_job(job_id, threshold):
         (d / "input.tif").unlink(missing_ok=True)
 
 
+FRONTEND = Path(__file__).resolve().parent.parent / "frontend" / "index.html"
+
+
+@app.get("/", include_in_schema=False)
+def index():
+    return FileResponse(FRONTEND)
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "weights": WEIGHTS}

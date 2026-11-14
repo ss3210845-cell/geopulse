@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GeoPulse - SAR flood mapping</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+  :root { --bg:#ffffff; --fg:#1a202c; --muted:#4a5568; --card:#f7fafc; --line:#e2e8f0; --accent:#2b6cb0; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111827; --fg:#f3f4f6; --muted:#9ca3af; --card:#1f2937; --line:#374151; --accent:#63b3ed; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--fg);
+         display:flex; height:100vh; }
+  aside { width:340px; padding:18px; overflow:auto; border-right:1px solid var(--line); background:var(--card); }
+  #map { flex:1; }
+  h1 { font-size:1.25rem; margin:0 0 4px; }
+  p.sub { margin:0 0 16px; color:var(--muted); font-size:.9rem; }
+  label { display:block; font-size:.85rem; margin:12px 0 4px; color:var(--muted); }
+  input[type=file], input[type=number] { width:100%; }
+  button { margin-top:14px; width:100%; padding:10px; font-size:1rem; border:0; border-radius:6px;
+           background:var(--accent); color:#fff; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  progress { width:100%; margin-top:14px; }
+  #status { margin-top:8px; font-size:.9rem; }
+  .big { font-size:1.9rem; font-weight:700; margin:14px 0 2px; }
+  .note { font-size:.8rem; color:var(--muted); margin-top:12px; line-height:1.4; }
+  a.dl { display:inline-block; margin-top:10px; color:var(--accent); }
+  @media (max-width: 700px) { body { flex-direction:column; } aside { width:100%; max-height:48vh; } }
+</style>
+</head>
+<body>
+<aside>
+  <h1>GeoPulse</h1>
+  <p class="sub">Upload a Sentinel-1 GeoTIFF (VV and VH in dB) to map open water and floods.</p>
+
+  <label for="file">Scene (.tif, up to 600 MB)</label>
+  <input id="file" type="file" accept=".tif,.tiff">
+
+  <label for="thr">Decision threshold (0.05 to 0.95)</label>
+  <input id="thr" type="number" min="0.05" max="0.95" step="0.05" value="0.4">
+
+  <button id="go">Run model</button>
+  <progress id="bar" max="1" value="0" hidden></progress>
+  <div id="status"></div>
+
+  <div id="out" hidden>
+    <div class="big"><span id="km2"></span> km&sup2;</div>
+    <div id="pct"></div>
+    <a id="dl" class="dl" href="#">Download mask (GeoTIFF)</a>
+  </div>
+
+  <p class="note" id="note">
+    Model estimate with no independent validation. It marks all open water,
+    including rivers and lakes that are normally there. To measure a flood,
+    compare a flood-date scene with an earlier scene from the same orbit.
+  </p>
+</aside>
+<div id="map"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+const map = L.map("map").setView([25.6, 85.14], 9);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+  { maxZoom: 18, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
+
+const $ = id => document.getElementById(id);
+let overlay = null, timer = null;
+
+function setStatus(t) { $("status").textContent = t; }
+
+$("go").addEventListener("click", async () => {
+  const f = $("file").files[0];
+  if (!f) { setStatus("Choose a .tif file first."); return; }
+  $("go").disabled = true; $("out").hidden = true;
+  $("bar").hidden = false; $("bar").value = 0;
+  setStatus("Uploading " + (f.size / 1e6).toFixed(0) + " MB ...");
+  const fd = new FormData();
+  fd.append("file", f);
+  fd.append("threshold", $("thr").value);
+  try {
+    const r = await fetch("/jobs", { method: "POST", body: fd });
+    const j = await r.json();
+    if (!r.ok) throw new Error(typeof j.detail === "string" ? j.detail : "Upload rejected");
+    poll(j.job_id);
+  } catch (e) {
+    setStatus("Error: " + e.message);
+    $("go").disabled = false; $("bar").hidden = true;
+  }
+});
+
+function poll(id) {
+  clearInterval(timer);
+  timer = setInterval(async () => {
+    try {
+      const j = await (await fetch("/jobs/" + id)).json();
+      if (j.status === "queued") setStatus("Waiting in queue ...");
+      if (j.status === "running") { $("bar").value = j.progress; setStatus("Running model: " + Math.round(j.progress * 100) + "%"); }
+      if (j.status === "error") { finish(); setStatus("Error: " + j.error); }
+      if (j.status === "done") { finish(); show(id, j.result); }
+    } catch (e) { finish(); setStatus("Lost connection to the server."); }
+  }, 2000);
+}
+
+function finish() { clearInterval(timer); $("go").disabled = false; $("bar").hidden = true; }
+
+function show(id, r) {
+  setStatus("Done.");
+  if (overlay) map.removeLayer(overlay);
+  overlay = L.imageOverlay("/jobs/" + id + "/overlay.png", r.bounds, { opacity: 0.8 }).addTo(map);
+  map.fitBounds(r.bounds);
+  $("km2").textContent = r.flood_km2 === null ? "n/a" : r.flood_km2.toLocaleString();
+  $("pct").textContent = r.flood_percent_of_valid + "% of the valid area (" +
+                         (r.valid_km2 === null ? "n/a" : r.valid_km2.toLocaleString()) + " km\u00b2)";
+  $("dl").href = "/jobs/" + id + "/mask";
+  $("out").hidden = false;
+  $("note").textContent = r.note;
+}
+</script>
+</body>
+</html>
