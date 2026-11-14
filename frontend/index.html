@@ -35,8 +35,11 @@
   <h1>GeoPulse</h1>
   <p class="sub">Upload a Sentinel-1 GeoTIFF (VV and VH in dB) to map open water and floods.</p>
 
-  <label for="file">Scene (.tif, up to 600 MB)</label>
+  <label for="file">Scene to map (.tif, up to 600 MB)</label>
   <input id="file" type="file" accept=".tif,.tiff">
+
+  <label for="before">Earlier scene, same orbit and area (optional: measures new flood)</label>
+  <input id="before" type="file" accept=".tif,.tiff">
 
   <label for="thr">Decision threshold (0.05 to 0.95)</label>
   <input id="thr" type="number" min="0.05" max="0.95" step="0.05" value="0.4">
@@ -59,7 +62,18 @@
 </aside>
 <div id="map"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js">function showChange(id, r) {
+  if (overlay) map.removeLayer(overlay);
+  overlay = L.imageOverlay("/jobs/" + id + "/overlay.png", r.bounds, { opacity: 0.85 }).addTo(map);
+  map.fitBounds(r.bounds);
+  $("km2").textContent = r.new_flood_km2.toLocaleString() + " new";
+  $("pct").textContent = "Water before: " + r.water_before_km2.toLocaleString() +
+      " km\u00b2, water now: " + r.water_flood_km2.toLocaleString() + " km\u00b2";
+  $("dl").href = "/jobs/" + id + "/mask";
+  $("out").hidden = false;
+  $("note").textContent = r.note;
+}
+</script>
 <script>
 const map = L.map("map").setView([25.6, 85.14], 9);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -76,11 +90,12 @@ $("go").addEventListener("click", async () => {
   $("go").disabled = true; $("out").hidden = true;
   $("bar").hidden = false; $("bar").value = 0;
   setStatus("Uploading " + (f.size / 1e6).toFixed(0) + " MB ...");
+  const b = $("before").files[0];
   const fd = new FormData();
-  fd.append("file", f);
+  if (b) { fd.append("before", b); fd.append("flood", f); } else { fd.append("file", f); }
   fd.append("threshold", $("thr").value);
   try {
-    const r = await fetch("/jobs", { method: "POST", body: fd });
+    const r = await fetch(b ? "/changes" : "/jobs", { method: "POST", body: fd });
     const j = await r.json();
     if (!r.ok) throw new Error(typeof j.detail === "string" ? j.detail : "Upload rejected");
     poll(j.job_id);
@@ -107,6 +122,7 @@ function finish() { clearInterval(timer); $("go").disabled = false; $("bar").hid
 
 function show(id, r) {
   setStatus("Done.");
+  if (r.kind === "change") { showChange(id, r); return; }
   if (overlay) map.removeLayer(overlay);
   overlay = L.imageOverlay("/jobs/" + id + "/overlay.png", r.bounds, { opacity: 0.8 }).addTo(map);
   map.fitBounds(r.bounds);
