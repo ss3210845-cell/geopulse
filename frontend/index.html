@@ -62,25 +62,14 @@
 </aside>
 <div id="map"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js">function showChange(id, r) {
-  if (overlay) map.removeLayer(overlay);
-  overlay = L.imageOverlay("/jobs/" + id + "/overlay.png", r.bounds, { opacity: 0.85 }).addTo(map);
-  map.fitBounds(r.bounds);
-  $("km2").textContent = r.new_flood_km2.toLocaleString() + " new";
-  $("pct").textContent = "Water before: " + r.water_before_km2.toLocaleString() +
-      " km\u00b2, water now: " + r.water_flood_km2.toLocaleString() + " km\u00b2";
-  $("dl").href = "/jobs/" + id + "/mask";
-  $("out").hidden = false;
-  $("note").textContent = r.note;
-}
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script>
 const map = L.map("map").setView([25.6, 85.14], 9);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
   { maxZoom: 18, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
 
 const $ = id => document.getElementById(id);
-let overlay = null, timer = null;
+let overlay = null, timer = null, fails = 0;
 
 function setStatus(t) { $("status").textContent = t; }
 
@@ -110,11 +99,12 @@ function poll(id) {
   timer = setInterval(async () => {
     try {
       const j = await (await fetch("/jobs/" + id)).json();
+      fails = 0;
       if (j.status === "queued") setStatus("Waiting in queue ...");
       if (j.status === "running") { $("bar").value = j.progress; setStatus("Running model: " + Math.round(j.progress * 100) + "%"); }
       if (j.status === "error") { finish(); setStatus("Error: " + j.error); }
       if (j.status === "done") { finish(); show(id, j.result); }
-    } catch (e) { finish(); setStatus("Lost connection to the server."); }
+    } catch (e) { console.error(e); fails++; if (fails >= 5) { finish(); setStatus("Error: " + e.message + " (job " + id + ")"); } else { setStatus("Reconnecting ..."); } }
   }, 2000);
 }
 
@@ -132,6 +122,25 @@ function show(id, r) {
   $("dl").href = "/jobs/" + id + "/mask";
   $("out").hidden = false;
   $("note").textContent = r.note;
+}
+
+function showChange(id, r) {
+  if (overlay) map.removeLayer(overlay);
+  overlay = L.imageOverlay("/jobs/" + id + "/overlay.png", r.bounds, { opacity: 0.85 }).addTo(map);
+  map.fitBounds(r.bounds);
+  $("km2").textContent = r.new_flood_km2.toLocaleString() + " new";
+  $("pct").textContent = "Water before: " + r.water_before_km2.toLocaleString() +
+      " km\u00b2, water now: " + r.water_flood_km2.toLocaleString() + " km\u00b2";
+  $("dl").href = "/jobs/" + id + "/mask";
+  $("out").hidden = false;
+  $("note").textContent = r.note;
+}
+
+const q = new URLSearchParams(location.search).get("job");
+if (q) {
+  fetch("/jobs/" + q).then(r => r.json()).then(j => {
+    if (j.status === "done") { show(q, j.result); } else { setStatus("Job " + q + ": " + j.status); }
+  }).catch(e => setStatus("Error: " + e.message));
 }
 </script>
 </body>
