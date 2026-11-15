@@ -15,6 +15,8 @@ p.add_argument("--before_sar", default="data/scenes/patna_20260828_o85.tif")
 p.add_argument("--flood_sar", default="data/scenes/patna_20260909_o85.tif")
 p.add_argument("--out", default="outputs/patna_change")
 p.add_argument("--decimate", type=int, default=6)
+p.add_argument("--before_label", default="28 Aug 2026")
+p.add_argument("--flood_label", default="9 Sep 2026")
 a = p.parse_args()
 
 with rasterio.open(a.before_mask) as s:
@@ -59,11 +61,11 @@ ch_small = change[::d, ::d].astype(float)
 ch_small[ch_small == 255] = np.nan
 
 fig, ax = plt.subplots(1, 3, figsize=(18, 6))
-ax[0].imshow(vv(a.before_sar), cmap="gray"); ax[0].set_title("Sentinel-1 VV  28 Aug 2026 (before)")
-ax[1].imshow(vv(a.flood_sar), cmap="gray");  ax[1].set_title("Sentinel-1 VV  9 Sep 2026 (flood)")
+ax[0].imshow(vv(a.before_sar), cmap="gray"); ax[0].set_title(f"Sentinel-1 VV  {a.before_label} (before)")
+ax[1].imshow(vv(a.flood_sar), cmap="gray");  ax[1].set_title(f"Sentinel-1 VV  {a.flood_label} (flood)")
 ax[2].imshow(ch_small, cmap=cm, vmin=0, vmax=3, interpolation="nearest")
 ax[2].set_title("Model: water change")
-ax[2].legend(handles=[Patch(color=cols[1], label="Water on 28 Aug (before)"),
+ax[2].legend(handles=[Patch(color=cols[1], label=f"Water on {a.before_label} (before)"),
                       Patch(color=cols[2], label="New flood"),
                       Patch(color=cols[3], label="Receded")],
              loc="lower left", fontsize=9)
