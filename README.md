@@ -24,7 +24,7 @@ test split was used). Single training run, seed 42, 30 epochs, flips/rotations a
 |---|---|---|---|---|---|
 | Validation | 89 | 0.777 | 0.772 | 0.774 | 0.632 |
 | Test | 90 | 0.772 | 0.807 | 0.789 | 0.652 |
-| Bolivia (held-out event) | 15 | 0.851 | 0.770 | 0.809 | 0.679 |
+| Bolivia (held-out event) | 15 | 0.851 | 0.770 | 0.808 | 0.678 |
 
 The best threshold differs between splits (0.55 on test, 0.20 on Bolivia), so the threshold should
 not be assumed to transfer to a new event or region.
