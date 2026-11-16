@@ -22,9 +22,12 @@ test split was used). Single training run, seed 42, 30 epochs, flips/rotations a
 
 | Split | Tiles | Precision | Recall | Dice | IoU |
 |---|---|---|---|---|---|
-| Validation | 89 | 0.777 | 0.772 | 0.774 | 0.632 |
-| Test | 90 | 0.772 | 0.807 | 0.789 | 0.652 |
+| Validation | 86 | 0.777 | 0.772 | 0.774 | 0.632 |
+| Test | 88 | 0.772 | 0.807 | 0.789 | 0.652 |
 | Bolivia (held-out event) | 15 | 0.851 | 0.770 | 0.808 | 0.678 |
+
+Tiles counts only tiles with at least one valid label pixel (the test split has 90 tiles, 2 of which
+have none; the validation split has 89, 3 of which have none; the Bolivia count was not checked).
 
 The best threshold differs between splits (0.55 on test, 0.20 on Bolivia), so the threshold should
 not be assumed to transfer to a new event or region.
@@ -48,6 +51,28 @@ Training comparison (validation, per-tile mean Dice, single seed, so differences
 A second pair from orbit 19 (24 Aug to 5 Sep) gave 244.8 km2 of new water over a slightly smaller
 footprint. Because the orbits view the ground differently, the two pairs should not be compared directly.
 
+### Per-region results on the test split (threshold 0.40)
+
+| Region | Tiles | Precision | Recall | Dice | IoU |
+|---|---|---|---|---|---|
+| India | 14 | 0.843 | 0.831 | 0.837 | 0.720 |
+| USA | 14 | 0.585 | 0.828 | 0.686 | 0.522 |
+| Paraguay | 13 | 0.615 | 0.842 | 0.711 | 0.552 |
+| Ghana | 10 | 0.881 | 0.589 | 0.706 | 0.545 |
+| Sri-Lanka | 9 | 0.920 | 0.920 | 0.920 | 0.852 |
+| Mekong | 6 | 0.911 | 0.930 | 0.921 | 0.853 |
+| Pakistan | 6 | 0.317 | 0.357 | 0.336 | 0.202 |
+| Somalia | 6 | 0.810 | 0.589 | 0.682 | 0.517 |
+| Spain | 6 | 0.785 | 0.901 | 0.839 | 0.723 |
+| Nigeria | 4 | 0.917 | 0.961 | 0.939 | 0.884 |
+| All (pooled) | 88 | 0.772 | 0.807 | 0.789 | 0.652 |
+
+Per-tile Dice (tiles that contain water, n=82): mean 0.530, median 0.587. The pooled figure is much higher
+because large water bodies dominate it, so typical tiles score lower than the headline number.
+Four of the five worst tiles score a Dice of 0 (Ghana, Paraguay, two in Somalia). USA and Paraguay show
+over-prediction (low precision), Ghana and Somalia under-prediction (low recall), and Pakistan is weak on
+both. Regions with 4 to 6 tiles give noisy estimates.
+
 ## Limitations
 
 - **The Patna areas are model estimates.** I found no independent flood-extent map for this event to
@@ -61,7 +86,8 @@ footprint. Because the orbits view the ground differently, the two pairs should 
 - **Bolivia is one event with 15 tiles.** It shows no drop in accuracy there; it does not show that the
   model generalises across regions. Published work reports larger drops on held-out events.
 - The validation and test tiles come from the same flood events as the training tiles.
-- Pooled metrics let large floods dominate. A per-tile and per-region breakdown has not been done yet.
+- Pooled metrics let large water bodies dominate; per-tile accuracy is lower (see the per-region table).
+- The cause of the failures on the worst tiles has not been investigated yet.
 
 ## Setup
 
